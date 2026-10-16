@@ -56,8 +56,8 @@ Apache — достаточно `.htaccess` с `DirectoryIndex index.html`, ос
 
 - Сертификат (Let's Encrypt / certbot) и редирект с `http` на `https` — обязательно.
 - Определитесь с каноническим хостом и сделайте редирект: либо `www → без www`, либо наоборот.
-- **Оба варианта (`lazur-it.ru` и `www.lazur-it.ru`) должны быть указаны в настройках
-  виджета Turnstile** — см. раздел 5. Если домена нет в списке, виджет вернёт ошибку.
+- В виджете Turnstile достаточно указать корневой домен `lazur-it.ru` — поддомены
+  он покрывает сам (раздел 5). Для домена, которого нет в списке, виджет отдаёт ошибку.
 
 DNS: `A`-запись на IP сервера, при необходимости `CNAME www` на каноническое имя.
 
@@ -96,29 +96,47 @@ https://dash.cloudflare.com/?to=/:account/turnstile
 
 → выбрать виджет → **Settings** → **Hostname management** → убедиться, что там есть:
 
-- `lazur-it.ru`
-- `www.lazur-it.ru` (если домен используется)
-- `lbnvwork.github.io` (только пока живёт демо на GitHub Pages)
+- `lazur-it.ru` — этого достаточно: добавленный корневой домен автоматически
+  покрывает все поддомены, включая `www.lazur-it.ru`
+- `lbnvwork.github.io` — только пока живёт демо на GitHub Pages
 
-Если домена нет в списке, виджет покажет ошибку. Форма при этом **не сломается**:
-посетитель всё равно отправит заявку, а в письме придёт поле `captcha: widget-unavailable`.
-Это осознанное поведение — живой клиент важнее идеальной защиты, но такие заявки стоит
-заметить и добавить домен.
+Если домена в списке нет, Turnstile вернёт ошибку **110200 «Domain not authorized»** —
+посетитель увидит «Ошибка» вместо галочки. Форма при этом **не сломается**: заявка
+всё равно уйдёт, а в письме придёт поле `captcha: widget-unavailable`. Это осознанное
+поведение — живой клиент важнее идеальной защиты, но такие заявки стоит заметить
+и добавить домен.
 
-Обновить список можно и через API:
+Коды ошибок на всякий случай — они видны в консоли браузера:
+
+| Код | Что значит |
+| --- | --- |
+| `110200` | домен не добавлен в Hostname Management |
+| `110100`, `110110`, `400020` | site key неверный или не найден |
+| `400070` | site key отключён в панели |
+| `200500` | фрейм `challenges.cloudflare.com` не загрузился (блокировка или CSP) |
+| `110600`, `110620` | истекло время прохождения — посетителю нужно обновить страницу |
+
+Обновить список можно и через API. Важно: `PUT` перезаписывает конфигурацию
+виджета целиком, поэтому сначала выгрузите текущую и меняйте только `domains` —
+иначе можно случайно сбросить режим виджета (`mode`).
 
 ```bash
 ACCOUNT_ID=...
 TOKEN=...            # API-токен с правом Account → Turnstile → Edit
 SITEKEY=0x4AAAAAAFYLhAKy0EwbUott
 
+# 1. посмотреть текущий конфиг (mode, name, domains)
+curl -s "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/challenges/widgets/$SITEKEY" \
+  --header "Authorization: Bearer $TOKEN"
+
+# 2. отправить тот же конфиг с дополненным списком доменов
 curl "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/challenges/widgets/$SITEKEY" \
   --request PUT \
   --header "Authorization: Bearer $TOKEN" \
   --json '{
-    "name": "LAZUR-IT landing",
-    "mode": "managed",
-    "domains": ["lazur-it.ru", "www.lazur-it.ru", "lbnvwork.github.io"]
+    "name": "<как в ответе шага 1>",
+    "mode": "<как в ответе шага 1>",
+    "domains": ["lazur-it.ru", "lbnvwork.github.io"]
   }'
 ```
 
