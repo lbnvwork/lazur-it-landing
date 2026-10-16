@@ -746,7 +746,18 @@
         </ul>
       </div>
 
-      <form class="form panel" id="leadForm" data-reveal novalidate>
+      <form class="form panel" id="leadForm" data-reveal novalidate
+            action="https://formsubmit.co/lmax-work@ya.ru" method="POST">
+        <!-- Заявки отправляет сервис FormSubmit — свой бэкенд не нужен.
+             Регистрация не требуется: при первой отправке на lmax-work@ya.ru
+             придёт письмо со ссылкой «Activate Form» — после клика заявки
+             начнут приходить автоматически. Подробности в README. -->
+        <input type="hidden" name="_subject" value="Заявка с сайта LAZUR-IT">
+        <input type="hidden" name="_template" value="table">
+        <input type="hidden" name="_captcha" value="false">
+        <input type="hidden" name="_next" value="https://lbnvwork.github.io/lazur-it-landing/?sent=1#contact">
+        <input class="honeypot" type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true">
+
         <h3 class="card__title" style="margin-bottom:1.2rem">Заявка на расчёт</h3>
         <div class="form__grid">
           <div class="field">
@@ -783,7 +794,8 @@
           <span>Отправить заявку</span>
         </button>
         <p class="form__note">Нажимая кнопку, вы соглашаетесь на обработку персональных данных.</p>
-        <p class="form__ok" id="formOk" hidden>Спасибо! Открываем ваш почтовый клиент — письмо уже подготовлено, остаётся нажать «Отправить».</p>
+        <p class="form__ok" id="formOk" hidden></p>
+        <p class="form__err" id="formErr" hidden></p>
       </form>
     </div>
   </div>

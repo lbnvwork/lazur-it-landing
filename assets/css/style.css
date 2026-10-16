@@ -1074,6 +1074,28 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   text-align: center;
 }
 
+.form__err {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(201, 106, 106, 0.55);
+  border-radius: var(--radius);
+  background: rgba(201, 106, 106, 0.12);
+  color: #e9adad;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+/* Ловушка для спам-ботов: скрыта от людей и не убирается через display:none,
+   чтобы боты её всё-таки видели. */
+.honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ------------------------------ 18. Подвал ------------------------------ */
 .footer {
   position: relative;

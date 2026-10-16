@@ -223,51 +223,173 @@
   }
 
   /* ------------------------------- 8. Форма ------------------------------- */
+  /* Заявки уходят в Web3Forms (внешний сервис, своего бэкенда не нужно).
+     Пока в форме стоит ключ-заглушка, работает прежний вариант — почтовый клиент. */
   function initForm() {
     var form = doc.getElementById('leadForm');
     if (!form) return;
 
-    var ok = doc.getElementById('formOk');
+    var okBox = doc.getElementById('formOk');
+    var errBox = doc.getElementById('formErr');
+    var button = form.querySelector('button[type="submit"]');
+    var buttonText = button ? button.querySelector('span') : null;
+
+    /* --- Куда отправлять заявки ---------------------------------------------
+       'formsubmit' — работает без регистрации: FormSubmit пришлёт на EMAIL письмо
+                      «Activate Form», после клика заявки идут на почту.
+       'formspree'  — зарегистрируйтесь на formspree.io, создайте форму и вставьте
+                      её ID в FORMSPREE_ID.
+       'mailto'     — запасной вариант: готовит письмо и открывает почтовый клиент.
+       Web3Forms здесь не используется: его закрывает Cloudflare-челлендж,
+       который невозможно пройти из fetch-запроса.
+    ------------------------------------------------------------------------- */
+    var PROVIDER = 'formsubmit';
     var EMAIL = 'lmax-work@ya.ru';
+    var PHONE = '+7 950 876-60-57';
+    var FORMSPREE_ID = 'YOUR_FORMSPREE_FORM_ID';
 
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
+    function message(box, text) {
+      [okBox, errBox].forEach(function (b) { if (b) b.hidden = true; });
+      if (box) {
+        box.textContent = text;
+        box.hidden = false;
+      }
+    }
 
-      var name = (form.elements.name.value || '').trim();
-      var company = (form.elements.company.value || '').trim();
-      var contact = (form.elements.contact.value || '').trim();
-      var type = form.elements.type.value || '—';
-      var message = (form.elements.message.value || '').trim();
+    function busy(state) {
+      if (button) button.disabled = state;
+      if (buttonText) buttonText.textContent = state ? 'Отправляю…' : 'Отправить заявку';
+    }
 
+    function readFields() {
+      return {
+        name: (form.elements.name.value || '').trim(),
+        company: (form.elements.company.value || '').trim(),
+        contact: (form.elements.contact.value || '').trim(),
+        type: form.elements.type.value || '—',
+        message: (form.elements.message.value || '').trim()
+      };
+    }
+
+    function validate() {
       var firstInvalid = null;
       [form.elements.name, form.elements.contact, form.elements.message].forEach(function (field) {
         var bad = !field.value.trim();
         field.style.borderColor = bad ? '#c96a6a' : '';
         if (bad && !firstInvalid) firstInvalid = field;
       });
+      return firstInvalid;
+    }
 
-      if (firstInvalid) {
-        firstInvalid.focus();
+    function subjectFor(data) {
+      return 'Заявка с сайта LAZUR-IT' + (data.company ? ' — ' + data.company : '');
+    }
+
+    /* Запасной вариант: подготовить письмо в почтовом клиенте */
+    function sendViaMailClient(data) {
+      var body = [
+        'Имя: ' + data.name,
+        'Компания: ' + (data.company || '—'),
+        'Способ связи: ' + data.contact,
+        'Тип проекта: ' + data.type,
+        '',
+        'Задача:',
+        data.message
+      ].join('\n');
+
+      message(okBox, 'Спасибо! Открываю ваш почтовый клиент — письмо уже подготовлено, остаётся нажать «Отправить».');
+
+      window.location.href = 'mailto:' + EMAIL +
+        '?subject=' + encodeURIComponent(subjectFor(data)) +
+        '&body=' + encodeURIComponent(body);
+    }
+
+    /* Основной вариант: отправка через внешний сервис (без своего бэкенда).
+       Отправляем FormData: это «простой» запрос, браузер не делает preflight,
+       поэтому он проходит с любого статического хостинга. */
+    function replyToFor(data) {
+      return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.contact) ? data.contact : '';
+    }
+
+    function sendViaService(data) {
+      var payload = new FormData();
+      var endpoint;
+
+      payload.append('name', data.name);
+      payload.append('company', data.company || '—');
+      payload.append('contact', data.contact);
+      payload.append('project_type', data.type);
+      payload.append('message', data.message);
+      payload.append('_subject', subjectFor(data));
+
+      /* Если указан e-mail — подставляем его как Reply-To,
+         чтобы можно было ответить прямо из почты. */
+      var replyTo = replyToFor(data);
+      if (replyTo) {
+        payload.append('email', replyTo);
+        payload.append('_replyto', replyTo);
+      }
+
+      if (PROVIDER === 'formspree') {
+        endpoint = 'https://formspree.io/f/' + FORMSPREE_ID;
+      } else {
+        endpoint = 'https://formsubmit.co/ajax/' + EMAIL;
+        payload.append('_template', 'table');
+        payload.append('_captcha', 'false');
+      }
+
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: payload
+      }).then(function (response) {
+        return response.json().catch(function () { return null; });
+      }).then(function (result) {
+        /* FormSubmit отдаёт признак успеха строкой "true", Formspree — как ok */
+        var success = result && (result.success === true || result.success === 'true' || result.ok === true);
+        if (!success) {
+          throw new Error(result && result.message ? result.message : 'Сервис вернул неожиданный ответ');
+        }
+      });
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      var invalid = validate();
+      if (invalid) {
+        invalid.focus();
         return;
       }
 
-      var subject = 'Заявка с сайта LAZUR-IT' + (company ? ' — ' + company : '');
-      var body = [
-        'Имя: ' + name,
-        'Компания: ' + (company || '—'),
-        'Способ связи: ' + contact,
-        'Тип проекта: ' + type,
-        '',
-        'Задача:',
-        message
-      ].join('\n');
+      var data = readFields();
 
-      if (ok) ok.hidden = false;
+      /* Сервис не выбран — не теряем заявку, работаем через почтовый клиент */
+      if (PROVIDER === 'mailto' || (PROVIDER === 'formspree' && FORMSPREE_ID === 'YOUR_FORMSPREE_FORM_ID')) {
+        sendViaMailClient(data);
+        return;
+      }
 
-      window.location.href = 'mailto:' + EMAIL +
-        '?subject=' + encodeURIComponent(subject) +
-        '&body=' + encodeURIComponent(body);
+      busy(true);
+
+      sendViaService(data).then(function () {
+        form.reset();
+        message(okBox, 'Спасибо! Заявка отправлена — отвечу в течение рабочего дня.');
+      }).catch(function () {
+        message(errBox, 'Не удалось отправить заявку. Напишите, пожалуйста, напрямую: ' + EMAIL + ' или ' + PHONE + '.');
+      }).then(function () {
+        busy(false);
+      });
     });
+
+    /* Возврат на сайт после обычной отправки формы (когда JS выключен):
+       Web3Forms перекидывает сюда с параметром ?sent=1 — показываем благодарность. */
+    if (/[?&]sent=1(&|$)/.test(window.location.search)) {
+      message(okBox, 'Спасибо! Заявка отправлена — отвечу в течение рабочего дня.');
+      if (history.replaceState) {
+        history.replaceState(null, '', window.location.pathname + '#contact');
+      }
+    }
   }
 
   /* ------------------------------- 9. Прочее ------------------------------ */
