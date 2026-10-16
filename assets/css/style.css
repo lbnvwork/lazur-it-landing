@@ -78,6 +78,11 @@ body {
 }
 
 img, svg { display: block; max-width: 100%; }
+
+/* height: auto обязателен: атрибуты width/height у <img> работают как CSS-высоты,
+   и если переопределить только width, картинка растягивается по вертикали. */
+img { height: auto; }
+
 picture { display: contents; }
 
 h1, h2, h3, h4 {
