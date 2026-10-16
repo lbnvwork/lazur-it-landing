@@ -222,7 +222,98 @@
     });
   }
 
-  /* ------------------------------- 8. Форма ------------------------------- */
+  /* ------------------------------- 8. Капча ------------------------------- */
+  /* Капча «одним кликом», без выбора картинок. Поддерживаются два сервиса —
+     выберите один и вставьте его site key:
+
+       CAPTCHA_PROVIDER = 'turnstile'    — Cloudflare Turnstile
+                          ключ: dash.cloudflare.com → Turnstile → Add site
+       CAPTCHA_PROVIDER = 'smartcaptcha' — Яндекс SmartCaptcha
+                          ключ: console.yandex.cloud → SmartCaptcha
+
+     Пока ключ пустой, виджет не подключается и форма работает без капчи.
+     Если виджет не загрузился (блокировка, медленная сеть) — посетителя
+     не блокируем, заявка всё равно уходит. */
+  var CAPTCHA_PROVIDER = '';
+  var CAPTCHA_SITE_KEY = '';
+
+  var CAPTCHA_SOURCES = {
+    turnstile: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+    smartcaptcha: 'https://smartcaptcha.yandexcloud.net/captcha.js?render=onload'
+  };
+
+  var captcha = {
+    enabled: false,
+    unavailable: false,   /* виджет не поднялся — людей не держим */
+    token: '',
+    reset: function () {}
+  };
+
+  function initCaptcha() {
+    if (!CAPTCHA_PROVIDER || !CAPTCHA_SITE_KEY) return;
+
+    var box = doc.getElementById('captchaBox');
+    var src = CAPTCHA_SOURCES[CAPTCHA_PROVIDER];
+    if (!box || !src) return;
+
+    captcha.enabled = true;
+    box.hidden = false;
+
+    var widget = doc.createElement('div');
+    box.appendChild(widget);
+
+    function onSolved(token) { captcha.token = token || ''; }
+
+    function render() {
+      if (CAPTCHA_PROVIDER === 'turnstile' && window.turnstile) {
+        var id = window.turnstile.render(widget, {
+          sitekey: CAPTCHA_SITE_KEY,
+          theme: 'dark',
+          language: 'ru',
+          size: 'flexible',
+          callback: onSolved,
+          'expired-callback': function () { captcha.token = ''; },
+          'error-callback': function () { captcha.unavailable = true; }
+        });
+        captcha.reset = function () {
+          captcha.token = '';
+          window.turnstile.reset(id);
+        };
+        return true;
+      }
+
+      if (CAPTCHA_PROVIDER === 'smartcaptcha' && window.smartCaptcha) {
+        var sid = window.smartCaptcha.render(widget, {
+          sitekey: CAPTCHA_SITE_KEY,
+          callback: onSolved
+        });
+        captcha.reset = function () {
+          captcha.token = '';
+          window.smartCaptcha.reset(sid);
+        };
+        return true;
+      }
+
+      return false;
+    }
+
+    var s = doc.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.defer = true;
+    s.onerror = function () { captcha.unavailable = true; };
+    s.onload = function () {
+      var tries = 0;
+      (function attempt() {
+        if (render()) return;
+        if (++tries > 20) { captcha.unavailable = true; return; }
+        setTimeout(attempt, 400);
+      })();
+    };
+    doc.head.appendChild(s);
+  }
+
+  /* ------------------------------- 9. Форма ------------------------------- */
   /* Заявки уходят в Web3Forms (внешний сервис, своего бэкенда не нужно).
      Пока в форме стоит ключ-заглушка, работает прежний вариант — почтовый клиент. */
   function initForm() {
@@ -321,6 +412,7 @@
       payload.append('project_type', data.type);
       payload.append('message', data.message);
       payload.append('_subject', subjectFor(data));
+      payload.append('captcha', captcha.enabled ? (captcha.unavailable ? 'widget-unavailable' : 'passed') : 'off');
 
       /* Если указан e-mail — подставляем его как Reply-To,
          чтобы можно было ответить прямо из почты. */
@@ -362,6 +454,23 @@
         return;
       }
 
+      /* Капча подключена, но ещё не пройдена.
+         Токен берём из callback, а если его нет — читаем скрытое поле,
+         которое создаёт сам виджет. */
+      if (captcha.enabled && !captcha.token) {
+        var tokenField = doc.querySelector('#captchaBox [name="cf-turnstile-response"], #captchaBox [name="smart-token"]');
+        if (tokenField && tokenField.value) captcha.token = tokenField.value;
+      }
+
+      if (captcha.enabled && !captcha.token && !captcha.unavailable) {
+        message(errBox, 'Отметьте, пожалуйста, галочку «я не робот» под полями формы.');
+        var box = doc.getElementById('captchaBox');
+        if (box && box.scrollIntoView) {
+          box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
       var data = readFields();
 
       /* Сервис не выбран — не теряем заявку, работаем через почтовый клиент */
@@ -374,6 +483,7 @@
 
       sendViaService(data).then(function () {
         form.reset();
+        captcha.reset();
         message(okBox, 'Спасибо! Заявка отправлена — отвечу в течение рабочего дня.');
       }).catch(function () {
         message(errBox, 'Не удалось отправить заявку. Напишите, пожалуйста, напрямую: ' + EMAIL + ' или ' + PHONE + '.');
@@ -392,7 +502,7 @@
     }
   }
 
-  /* ------------------------------- 9. Прочее ------------------------------ */
+  /* ------------------------------ 10. Прочее ------------------------------ */
   function initMisc() {
     var year = doc.getElementById('year');
     if (year) year.textContent = String(new Date().getFullYear());
@@ -410,6 +520,7 @@
     initScrollSpy();
     initCounters();
     initSmoothAnchors();
+    initCaptcha();
     initForm();
     initMisc();
   }

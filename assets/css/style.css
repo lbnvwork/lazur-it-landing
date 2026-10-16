@@ -1096,6 +1096,14 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   pointer-events: none;
 }
 
+/* Капча «одним кликом» */
+.form__captcha {
+  margin-top: 1.2rem;
+  min-height: 0;
+}
+.form__captcha[hidden] { display: none; }
+.form__captcha > div { max-width: 100%; }
+
 /* ------------------------------ 18. Подвал ------------------------------ */
 .footer {
   position: relative;

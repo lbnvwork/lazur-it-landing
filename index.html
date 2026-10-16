@@ -789,6 +789,11 @@
             <textarea id="f-message" name="message" required placeholder="Кратко опишите задачу, сроки и что уже есть"></textarea>
           </div>
         </div>
+
+        <!-- Капча «одним кликом» (Cloudflare Turnstile или Яндекс SmartCaptcha).
+             Виджет подключается из JS, когда в настройках указан ключ. -->
+        <div class="form__captcha" id="captchaBox" hidden></div>
+
         <button class="btn btn--primary" type="submit">
           <svg aria-hidden="true"><use href="#i-send"></use></svg>
           <span>Отправить заявку</span>
