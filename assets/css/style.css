@@ -528,10 +528,78 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 }
 
 .hero__logo {
+  position: relative;
   width: clamp(240px, 46vw, 420px);
+  aspect-ratio: 610 / 394;
   margin: 0 auto 1.9rem;
   filter: drop-shadow(0 26px 60px rgba(0, 0, 0, 0.65));
-  animation: float-soft 7s ease-in-out infinite;
+  animation: float-soft 9s ease-in-out infinite;
+}
+
+/* Слои одного и того же логотипа. Разложены масками так, чтобы крылья
+   можно было анимировать отдельно от тела и вордмарка — при этом в статике
+   все слои точно совпадают и картинка выглядит как единый логотип. */
+.hero__glyph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Логотип разрезан на 4 непересекающихся прямоугольника через clip-path:
+   каждый пиксель принадлежит ровно одному слою, поэтому в статике картинка
+   совпадает с исходным логотипом пиксель в пиксель — без «дыр» и утолщений. */
+.hero__glyph--wing-l {
+  /* x 0…45 %, y 0…49 % */
+  clip-path: inset(0 55% 51% 0);
+  transform-origin: 45% 32%;
+  animation: beetle-flap-left 8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.hero__glyph--wing-r {
+  /* x 55.4…100 %, y 0…49 % */
+  clip-path: inset(0 0 51% 55.4%);
+  transform-origin: 55.4% 32%;
+  animation: beetle-flap-right 8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Тело — между крыльями: x 45…55.4 %, y 0…49 % */
+.hero__glyph--core {
+  clip-path: inset(0 44.6% 51% 45%);
+}
+
+/* Лапки и вордмарк — неподвижны: y 49…100 % */
+.hero__glyph--lower {
+  clip-path: inset(49% 0 0 0);
+}
+
+/* Мягкое золотое свечение вокруг жука */
+.hero__halo {
+  position: absolute;
+  inset: -10% -14%;
+  opacity: 0.5;
+  background: radial-gradient(46% 40% at 50% 42%, rgba(217, 180, 91, 0.3), rgba(95, 182, 194, 0.12) 55%, transparent 72%);
+  animation: beetle-halo 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Медленный мах: крыло приподнимается внешним краем и чуть разворачивается
+   наружу. skewY не сдвигает пиксели на линии стыка с телом, поэтому стык
+   остаётся целым. */
+@keyframes beetle-flap-left {
+  0%, 100% { transform: skewY(0deg) scaleX(1); }
+  50%      { transform: skewY(1deg) scaleX(1.025); }
+}
+
+@keyframes beetle-flap-right {
+  0%, 100% { transform: skewY(0deg) scaleX(1); }
+  50%      { transform: skewY(-1deg) scaleX(1.025); }
+}
+
+/* Дыхание золотого света под жуком */
+@keyframes beetle-halo {
+  0%, 100% { opacity: 0.35; transform: scale(0.94); }
+  50%      { opacity: 0.75; transform: scale(1.05); }
 }
 
 @keyframes float-soft {
