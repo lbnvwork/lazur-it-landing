@@ -223,19 +223,23 @@
   }
 
   /* ------------------------------- 8. Капча ------------------------------- */
-  /* Капча «одним кликом», без выбора картинок. Поддерживаются два сервиса —
-     выберите один и вставьте его site key:
+  /* Капча «одним кликом», без выбора картинок — Cloudflare Turnstile.
 
-       CAPTCHA_PROVIDER = 'turnstile'    — Cloudflare Turnstile
-                          ключ: dash.cloudflare.com → Turnstile → Add site
-       CAPTCHA_PROVIDER = 'smartcaptcha' — Яндекс SmartCaptcha
-                          ключ: console.yandex.cloud → SmartCaptcha
+     Site key публичный, ему место в коде. Secret key нужен только серверу
+     (см. deploy/send.php) и в репозиторий не попадает.
 
-     Пока ключ пустой, виджет не подключается и форма работает без капчи.
-     Если виджет не загрузился (блокировка, медленная сеть) — посетителя
-     не блокируем, заявка всё равно уходит. */
-  var CAPTCHA_PROVIDER = '';
-  var CAPTCHA_SITE_KEY = '';
+     ВАЖНО: в настройках виджета Turnstile → Hostname management должны быть
+     перечислены все домены, где открывается форма: lazur-it.ru,
+     www.lazur-it.ru, а также lbnvwork.github.io, пока живёт демо на GitHub Pages.
+     Для домена, которого нет в списке, виджет вернёт ошибку.
+
+     Вместо Turnstile можно поставить Яндекс SmartCaptcha — поменяйте
+     CAPTCHA_PROVIDER на 'smartcaptcha' и подставьте ключ клиента.
+
+     Если виджет не поднялся (домен не разрешён, блокировка, медленная сеть) —
+     посетителя не блокируем, заявка всё равно уходит. */
+  var CAPTCHA_PROVIDER = 'turnstile';
+  var CAPTCHA_SITE_KEY = '0x4AAAAAAFYLhAKy0EwbUott';
 
   var CAPTCHA_SOURCES = {
     turnstile: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
@@ -314,8 +318,9 @@
   }
 
   /* ------------------------------- 9. Форма ------------------------------- */
-  /* Заявки уходят в Web3Forms (внешний сервис, своего бэкенда не нужно).
-     Пока в форме стоит ключ-заглушка, работает прежний вариант — почтовый клиент. */
+  /* Заявки уходят в FormSubmit (внешний сервис, своего бэкенда не нужно).
+     Если на хостинге развёрнут deploy/send.php, укажите его в LEAD_ENDPOINT —
+     тогда заявку принимает свой скрипт и сам проверяет токен капчи на сервере. */
   function initForm() {
     var form = doc.getElementById('leadForm');
     if (!form) return;
@@ -333,8 +338,14 @@
        'mailto'     — запасной вариант: готовит письмо и открывает почтовый клиент.
        Web3Forms здесь не используется: его закрывает Cloudflare-челлендж,
        который невозможно пройти из fetch-запроса.
+
+       LEAD_ENDPOINT — путь к своему приёмнику заявок, если на хостинге есть PHP
+       (см. deploy/send.php). Он проверяет токен Turnstile на сервере — это
+       единственный способ защититься от ботов, которые бьют мимо страницы.
+       Пустая строка — заявки уходят в выбранный ниже сервис напрямую.
     ------------------------------------------------------------------------- */
     var PROVIDER = 'formsubmit';
+    var LEAD_ENDPOINT = '';
     var EMAIL = 'lmax-work@ya.ru';
     var PHONE = '+7 950 876-60-57';
     var FORMSPREE_ID = 'YOUR_FORMSPREE_FORM_ID';
@@ -422,7 +433,11 @@
         payload.append('_replyto', replyTo);
       }
 
-      if (PROVIDER === 'formspree') {
+      if (LEAD_ENDPOINT) {
+        /* Свой приёмник на хостинге: он сам проверит токен Turnstile */
+        endpoint = LEAD_ENDPOINT;
+        payload.append('captcha_token', captcha.token);
+      } else if (PROVIDER === 'formspree') {
         endpoint = 'https://formspree.io/f/' + FORMSPREE_ID;
       } else {
         endpoint = 'https://formsubmit.co/ajax/' + EMAIL;

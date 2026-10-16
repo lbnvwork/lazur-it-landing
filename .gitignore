@@ -3,3 +3,7 @@
 # не публикуются в этом репозитории — файлы остаются только на рабочей машине.
 /download/
 /tools/
+
+# Секрет Cloudflare Turnstile: только на сервере, в репозиторий не попадает.
+# Рядом лежит шаблон turnstile-secret.php.example.
+/deploy/turnstile-secret.php
